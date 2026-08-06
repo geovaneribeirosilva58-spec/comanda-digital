@@ -1,0 +1,220 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts'
+
+export default function ReportsClient({ data }: { data: any[] }) {
+  const [period, setPeriod] = useState<'diario' | 'semanal' | 'mensal' | 'anual'>('diario')
+
+  // Processar dados para Gráficos de Evolução no Tempo
+  const timeData = useMemo(() => {
+    const grouped: Record<string, number> = {}
+
+    data.forEach(order => {
+      if (!order.closed_at) return
+      
+      const date = new Date(order.closed_at)
+      let key = ''
+
+      if (period === 'diario') {
+        // Formato: YYYY-MM-DD
+        key = date.toLocaleDateString('pt-BR')
+      } else if (period === 'semanal') {
+        // Encontrar a Segunda-feira da semana atual
+        const day = date.getDay()
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1) // ajusta pra segunda
+        const monday = new Date(date.setDate(diff))
+        key = `Sem. de ${monday.toLocaleDateString('pt-BR').slice(0, 5)}`
+      } else if (period === 'mensal') {
+        // Formato: MM/YYYY
+        key = `${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
+      } else if (period === 'anual') {
+        // Formato: YYYY
+        key = String(date.getFullYear())
+      }
+
+      grouped[key] = (grouped[key] || 0) + Number(order.total)
+    })
+
+    return Object.entries(grouped).map(([name, value]) => ({
+      name,
+      total: value
+    }))
+  }, [data, period])
+
+  // Processar dados para Vendas por Garçom
+  const waiterData = useMemo(() => {
+    const grouped: Record<string, number> = {}
+    
+    data.forEach(order => {
+      const waiterName = order.profiles?.name || 'Administrador'
+      grouped[waiterName] = (grouped[waiterName] || 0) + Number(order.total)
+    })
+
+    return Object.entries(grouped)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+  }, [data])
+
+  const COLORS = ['#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6']
+
+  const formatBRL = (val: number) => `R$ ${val.toFixed(2).replace('.', ',')}`
+
+  return (
+    <div className="space-y-8">
+      
+      {/* Seção de Evolução de Vendas */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-slate-200">Evolução de Vendas</h2>
+            <p className="text-slate-400 text-sm">Acompanhe o faturamento da empresa ao longo do tempo.</p>
+          </div>
+          <div className="flex bg-slate-950 rounded-lg p-1 border border-slate-800">
+            {(['diario', 'semanal', 'mensal', 'anual'] as const).map(p => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${
+                  period === p 
+                    ? 'bg-amber-500 text-slate-950 shadow-sm' 
+                    : 'text-slate-400 hover:text-amber-500 hover:bg-slate-900'
+                }`}
+              >
+                {p.charAt(0).toUpperCase() + p.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="h-[400px] w-full">
+          {timeData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={timeData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                <XAxis 
+                  dataKey="name" 
+                  stroke="#94a3b8" 
+                  tick={{ fill: '#94a3b8' }}
+                  tickMargin={10}
+                />
+                <YAxis 
+                  stroke="#94a3b8"
+                  tick={{ fill: '#94a3b8' }}
+                  tickFormatter={(value) => `R$ ${value}`}
+                  width={80}
+                />
+                <Tooltip
+                  cursor={{ stroke: '#475569', strokeWidth: 1, strokeDasharray: '3 3' }}
+                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '8px', color: '#f8fafc' }}
+                  formatter={(value: any) => [formatBRL(Number(value)), 'Faturamento']}
+                  labelStyle={{ color: '#f59e0b', fontWeight: 'bold', marginBottom: '4px' }}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="total" 
+                  stroke="#f59e0b" 
+                  strokeWidth={4} 
+                  dot={{ fill: '#f59e0b', strokeWidth: 2, r: 6 }} 
+                  activeDot={{ r: 8, stroke: '#fff', strokeWidth: 2 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full flex items-center justify-center text-slate-500 font-medium border-2 border-dashed border-slate-800 rounded-xl">
+              Nenhuma venda registrada para mostrar no gráfico.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Seção de Vendas por Garçom */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        {/* Gráfico de Barras */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+          <h2 className="text-xl font-bold text-slate-200 mb-1">Vendas por Atendente</h2>
+          <p className="text-slate-400 text-sm mb-6">Total arrecadado por cada membro da equipe.</p>
+          
+          <div className="h-[300px]">
+            {waiterData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={waiterData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={true} vertical={false} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" stroke="#94a3b8" width={100} tick={{ fill: '#e2e8f0', fontSize: 13 }} />
+                  <Tooltip 
+                    cursor={{ fill: '#1e293b' }}
+                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '8px', color: '#f8fafc' }}
+                    formatter={(value: any) => [formatBRL(Number(value)), 'Faturamento']}
+                  />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                    {waiterData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-slate-500 text-sm border-2 border-dashed border-slate-800 rounded-xl">
+                Sem dados suficientes.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Gráfico de Pizza (opcional para complementar visualmente) */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col">
+          <h2 className="text-xl font-bold text-slate-200 mb-1">Participação nas Vendas</h2>
+          <p className="text-slate-400 text-sm mb-6">Porcentagem de faturamento da equipe.</p>
+          
+          <div className="h-[300px] flex-1">
+            {waiterData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={waiterData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={70}
+                    outerRadius={100}
+                    paddingAngle={5}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {waiterData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '8px', color: '#f8fafc' }}
+                    formatter={(value: any) => [formatBRL(Number(value)), 'Faturamento']}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-slate-500 text-sm border-2 border-dashed border-slate-800 rounded-xl">
+                Sem dados suficientes.
+              </div>
+            )}
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  )
+}
