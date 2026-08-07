@@ -3,10 +3,22 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import UsuariosClient from './UsuariosClient'
 
 export default async function AdminUsuariosPage() {
   const supabase = await createClient()
+  const adminAuth = createAdminClient()
+
   const { data: profiles } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
+  const { data: authUsers } = await adminAuth.auth.admin.listUsers()
+
+  const combinedProfiles = profiles?.map(profile => {
+    const authUser = authUsers?.users.find(u => u.id === profile.id)
+    return {
+      ...profile,
+      email: authUser?.email || ''
+    }
+  }) || []
 
   async function createWaiter(formData: FormData) {
     'use server'
@@ -48,6 +60,33 @@ export default async function AdminUsuariosPage() {
     revalidatePath('/admin/usuarios')
   }
 
+  async function updateWaiter(formData: FormData) {
+    'use server'
+    const id = formData.get('id') as string
+    const name = formData.get('name') as string
+    const email = formData.get('email') as string
+    const password = formData.get('password') as string
+    
+    const adminAuth = createAdminClient()
+    const updatePayload: any = {
+      email,
+      user_metadata: { name }
+    }
+    
+    if (password && password.trim().length >= 6) {
+      updatePayload.password = password
+    }
+
+    // Update in Auth
+    await adminAuth.auth.admin.updateUserById(id, updatePayload)
+    
+    // Update in profiles table
+    const supabase = await createClient()
+    await supabase.from('profiles').update({ name }).eq('id', id)
+    
+    revalidatePath('/admin/usuarios')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -73,45 +112,11 @@ export default async function AdminUsuariosPage() {
         </form>
       </div>
 
-      <div className="bg-slate-900 rounded-lg border border-slate-800 overflow-hidden overflow-x-auto">
-        <table className="w-full text-sm text-left">
-          <thead className="text-xs uppercase bg-slate-950 text-slate-400">
-            <tr>
-              <th className="px-6 py-4 font-medium">Nome</th>
-              <th className="px-6 py-4 font-medium">Perfil</th>
-              <th className="px-6 py-4 font-medium">Criado em</th>
-              <th className="px-6 py-4 font-medium text-right">Ações</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800">
-            {profiles?.map((profile) => (
-              <tr key={profile.id} className="hover:bg-slate-800/50 transition-colors">
-                <td className="px-6 py-4 text-lg font-bold text-amber-500 uppercase tracking-wider">{profile.name}</td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                    profile.role === 'admin' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' : 'bg-slate-800 text-slate-400'
-                  }`}>
-                    {profile.role.toUpperCase()}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-slate-400">
-                  {new Date(profile.created_at).toLocaleDateString('pt-BR')}
-                </td>
-                <td className="px-6 py-4 text-right">
-                  {profile.role === 'garcom' && (
-                    <form action={deleteWaiter}>
-                      <input type="hidden" name="id" value={profile.id} />
-                      <Button variant="destructive" size="sm" className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20">
-                        Excluir
-                      </Button>
-                    </form>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <UsuariosClient 
+        profiles={combinedProfiles}
+        deleteWaiter={deleteWaiter}
+        updateWaiter={updateWaiter}
+      />
     </div>
   )
 }

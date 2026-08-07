@@ -17,6 +17,13 @@ export default async function CardapioPage({ params }: { params: { id: string } 
     .order('category')
     .order('name')
 
+  // Buscar garçons (para admin escolher)
+  const { data: waiters } = await supabase
+    .from('profiles')
+    .select('id, name')
+    .eq('role', 'garcom')
+    .order('name')
+
   // Agrupar produtos por categoria
   const categories = products?.reduce((acc: any, product) => {
     if (!acc[product.category]) {
@@ -29,7 +36,7 @@ export default async function CardapioPage({ params }: { params: { id: string } 
   return (
     <div className="space-y-4">
       <div className="flex items-center">
-        <Link href={`/garcom/mesas/${tableId}`} className="flex items-center text-slate-400 hover:text-amber-500 transition-colors">
+        <Link href={`/admin/mesas/${tableId}`} className="flex items-center text-slate-400 hover:text-amber-500 transition-colors">
           <ArrowLeft className="w-5 h-5 mr-1" />
           Voltar
         </Link>
@@ -37,7 +44,7 @@ export default async function CardapioPage({ params }: { params: { id: string } 
 
       <h1 className="text-2xl font-bold text-amber-500">Cardápio</h1>
 
-      <MenuClient tableId={tableId} categories={categories} />
+      <MenuClient tableId={tableId} categories={categories} isAdmin={true} waiters={waiters || []} />
     </div>
   )
 }

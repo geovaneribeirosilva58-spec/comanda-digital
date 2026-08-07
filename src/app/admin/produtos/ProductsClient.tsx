@@ -7,12 +7,13 @@ import { Search } from 'lucide-react'
 
 interface ProductsClientProps {
   products: any[]
-  updateProductPrice: (formData: FormData) => Promise<void>
+  updateProductFull: (formData: FormData) => Promise<void>
   toggleProductStatus: (id: string, currentActive: boolean) => Promise<void>
 }
 
-export default function ProductsClient({ products, updateProductPrice, toggleProductStatus }: ProductsClientProps) {
+export default function ProductsClient({ products, updateProductFull, toggleProductStatus }: ProductsClientProps) {
   const [searchTerm, setSearchTerm] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const filteredProducts = products.filter(product => 
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -43,36 +44,62 @@ export default function ProductsClient({ products, updateProductPrice, togglePro
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800">
-            {filteredProducts.map((product) => (
-              <tr key={product.id} className="hover:bg-slate-800/50 transition-colors">
-                <td className="px-6 py-4 text-lg font-bold text-amber-500 uppercase tracking-wider">{product.name}</td>
-                <td className="px-6 py-4 text-slate-300">{product.category}</td>
-                <td className="px-6 py-4 font-bold text-amber-500">
-                  <form action={updateProductPrice} className="flex items-center gap-2">
-                    <input type="hidden" name="id" value={product.id} />
-                    <span className="text-slate-400">R$</span>
-                    <Input name="price" defaultValue={product.price} step="0.01" type="number" className="w-24 h-8 bg-slate-950 border-slate-700" required />
-                    <Button type="submit" size="sm" variant="secondary" className="h-8 px-2 text-xs">Salvar</Button>
-                  </form>
-                </td>
-                <td className="px-6 py-4">
-                  {product.active ? (
-                    <span className="text-emerald-500">Sim</span>
-                  ) : (
-                    <span className="text-red-500">Não</span>
-                  )}
-                </td>
-                <td className="px-6 py-4 text-right">
-                  {/* Note that we need to bind arguments via an inline arrow function or just passing them to a hidden input, or since it's a Client Component, we can't easily use .bind(null). 
-                      Instead we can wrap it in an action function */}
-                  <form action={() => toggleProductStatus(product.id, product.active)}>
-                    <Button variant={product.active ? "destructive" : "secondary"} size="sm">
-                      {product.active ? 'Desativar' : 'Ativar'}
+            {filteredProducts.map((product) => {
+              const isEditing = editingId === product.id
+              
+              if (isEditing) {
+                return (
+                  <tr key={product.id} className="bg-slate-800/80">
+                    <td colSpan={5} className="p-0">
+                      <form action={async (formData) => {
+                        await updateProductFull(formData)
+                        setEditingId(null)
+                      }} className="flex items-center gap-4 px-6 py-4 w-full">
+                        <input type="hidden" name="id" value={product.id} />
+                        <Input name="name" defaultValue={product.name} className="flex-1 bg-slate-950 border-slate-700 font-bold text-amber-500 uppercase tracking-wider" required />
+                        <Input name="category" defaultValue={product.category} className="w-48 bg-slate-950 border-slate-700 text-slate-300 uppercase" required />
+                        <div className="flex items-center gap-2 w-32">
+                          <span className="text-slate-400">R$</span>
+                          <Input name="price" defaultValue={product.price} step="0.01" type="number" className="bg-slate-950 border-slate-700 flex-1" required />
+                        </div>
+                        <div className="w-16">
+                          {product.active ? <span className="text-emerald-500 text-sm">Sim</span> : <span className="text-red-500 text-sm">Não</span>}
+                        </div>
+                        <div className="flex gap-2 justify-end ml-auto">
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setEditingId(null)}>Cancelar</Button>
+                          <Button type="submit" size="sm" variant="secondary" className="bg-amber-500 text-slate-950 hover:bg-amber-600">Salvar</Button>
+                        </div>
+                      </form>
+                    </td>
+                  </tr>
+                )
+              }
+
+              return (
+                <tr key={product.id} className="hover:bg-slate-800/50 transition-colors">
+                  <td className="px-6 py-4 text-lg font-bold text-amber-500 uppercase tracking-wider">{product.name}</td>
+                  <td className="px-6 py-4 text-slate-300">{product.category}</td>
+                  <td className="px-6 py-4 font-bold text-amber-500">R$ {product.price.toFixed(2)}</td>
+                  <td className="px-6 py-4">
+                    {product.active ? (
+                      <span className="text-emerald-500">Sim</span>
+                    ) : (
+                      <span className="text-red-500">Não</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setEditingId(product.id)} className="text-slate-400 hover:text-amber-500">
+                      Editar
                     </Button>
-                  </form>
-                </td>
-              </tr>
-            ))}
+                    <form action={() => toggleProductStatus(product.id, product.active)}>
+                      <Button variant={product.active ? "destructive" : "secondary"} size="sm">
+                        {product.active ? 'Desativar' : 'Ativar'}
+                      </Button>
+                    </form>
+                  </td>
+                </tr>
+              )
+            })}
             {filteredProducts.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-6 py-8 text-center text-slate-500">

@@ -18,6 +18,7 @@ import {
 
 export default function ReportsClient({ data }: { data: any[] }) {
   const [period, setPeriod] = useState<'diario' | 'semanal' | 'mensal' | 'anual'>('diario')
+  const [waiterPeriod, setWaiterPeriod] = useState<'hoje' | 'semana' | 'mes' | 'ano' | 'tudo'>('tudo')
 
   // Evitar hidration mismatch pegando o ano atual no mount ou usando o fallback padrao do browser
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
@@ -45,7 +46,8 @@ export default function ReportsClient({ data }: { data: any[] }) {
         key = String(date.getFullYear())
       }
 
-      grouped[key] = (grouped[key] || 0) + Number(order.total)
+      const orderTotal = order.order_items?.reduce((acc: number, item: any) => acc + (item.status !== 'cancelado' ? item.quantity * item.unit_price : 0), 0) || 0
+      grouped[key] = (grouped[key] || 0) + orderTotal
     })
 
     return Object.entries(grouped).map(([name, value]) => ({
@@ -58,15 +60,46 @@ export default function ReportsClient({ data }: { data: any[] }) {
   const waiterData = useMemo(() => {
     const grouped: Record<string, number> = {}
     
+    const now = new Date()
+    const todayStr = now.toLocaleDateString('pt-BR')
+    
+    // Calcular início da semana (segunda-feira)
+    const day = now.getDay()
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1)
+    const monday = new Date(now)
+    monday.setDate(diff)
+    monday.setHours(0,0,0,0)
+
     data.forEach(order => {
-      const waiterName = order.profiles?.name || 'Administrador'
-      grouped[waiterName] = (grouped[waiterName] || 0) + Number(order.total)
+      if (!order.closed_at) return
+      
+      const orderDate = new Date(order.closed_at)
+      let include = true
+      
+      if (waiterPeriod === 'hoje') {
+        include = orderDate.toLocaleDateString('pt-BR') === todayStr
+      } else if (waiterPeriod === 'semana') {
+        include = orderDate >= monday
+      } else if (waiterPeriod === 'mes') {
+        include = orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear()
+      } else if (waiterPeriod === 'ano') {
+        include = orderDate.getFullYear() === now.getFullYear()
+      }
+
+      if (include) {
+        order.order_items?.forEach((item: any) => {
+          if (item.status !== 'cancelado') {
+            const waiterName = item.profiles?.name || 'Desconhecido'
+            grouped[waiterName] = (grouped[waiterName] || 0) + (item.quantity * item.unit_price)
+          }
+        })
+      }
     })
 
     return Object.entries(grouped)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
-  }, [data])
+  }, [data, waiterPeriod])
 
   // 1. Top 10 Produtos do Mês Atual
   const top10Month = useMemo(() => {
@@ -297,8 +330,23 @@ export default function ReportsClient({ data }: { data: any[] }) {
         
         {/* Gráfico de Barras */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-          <h2 className="text-xl font-bold text-slate-200 mb-1">Vendas por Atendente</h2>
-          <p className="text-slate-400 text-sm mb-6">Total arrecadado por cada membro da equipe.</p>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-slate-200 mb-1">Vendas por Atendente</h2>
+              <p className="text-slate-400 text-sm">Total arrecadado por cada membro.</p>
+            </div>
+            <select 
+              value={waiterPeriod}
+              onChange={(e) => setWaiterPeriod(e.target.value as any)}
+              className="bg-slate-950 border border-slate-800 text-slate-200 text-sm rounded-lg focus:ring-amber-500 focus:border-amber-500 block p-2"
+            >
+              <option value="tudo">Todo o Período</option>
+              <option value="hoje">Hoje</option>
+              <option value="semana">Esta Semana</option>
+              <option value="mes">Este Mês</option>
+              <option value="ano">Este Ano</option>
+            </select>
+          </div>
           
           <div className="h-[300px]">
             {waiterData.length > 0 ? (

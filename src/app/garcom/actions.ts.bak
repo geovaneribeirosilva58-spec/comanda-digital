@@ -4,22 +4,12 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
-export async function addItemsToOrder(orderId: string, items: any[], assignedWaiterId?: string) {
+export async function addItemsToOrder(orderId: string, items: any[]) {
   const supabase = await createClient()
 
   const { data: orderCheck } = await supabase.from('orders').select('status').eq('id', orderId).single()
   if (orderCheck?.status === 'fechada') {
     throw new Error('Esta comanda já foi finalizada e não pode receber novos itens.')
-  }
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Não autenticado')
-
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  
-  let finalWaiterId = user.id
-  if (profile?.role === 'admin' && assignedWaiterId) {
-    finalWaiterId = assignedWaiterId
   }
 
   // Mapear os itens para inserção
@@ -29,8 +19,7 @@ export async function addItemsToOrder(orderId: string, items: any[], assignedWai
     quantity: item.quantity,
     unit_price: item.unit_price,
     note: item.note || null,
-    status: 'pendente',
-    waiter_id: finalWaiterId
+    status: 'pendente'
   }))
 
   const { error } = await supabase.from('order_items').insert(orderItemsData)
@@ -40,11 +29,17 @@ export async function addItemsToOrder(orderId: string, items: any[], assignedWai
     throw new Error('Falha ao enviar pedido')
   }
 
-  // Removido: Atualização manual do `orders.total` para evitar Race Conditions.
-  // O faturamento agora é sempre calculado somando-se os `order_items` em tempo real.
+  // Atualizar o total da comanda
+  const itemsTotal = items.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0)
+  
+  const { data: order } = await supabase.from('orders').select('total').eq('id', orderId).single()
+  if (order) {
+    const newTotal = Number(order.total) + itemsTotal
+    await supabase.from('orders').update({ total: newTotal }).eq('id', orderId)
+  }
 }
 
-export async function openTableAndAddItems(tableId: string, items: any[], assignedWaiterId?: string) {
+export async function openTableAndAddItems(tableId: string, items: any[]) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -64,25 +59,14 @@ export async function openTableAndAddItems(tableId: string, items: any[], assign
 
   let orderId;
 
-  let finalWaiterId = user.id
-  
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role === 'admin' && assignedWaiterId) {
-    finalWaiterId = assignedWaiterId
-  }
-
   if (existingOrders && existingOrders.length > 0) {
     orderId = existingOrders[0].id
   } else {
-    // Buscar o nome da mesa atual para congelar na comanda
-    const { data: tableData } = await supabase.from('tables').select('name').eq('id', tableId).single()
-
     // 3. Criar order se não existir
     const { data: newOrder, error: orderError } = await supabase.from('orders').insert({
       table_id: tableId,
-      waiter_id: finalWaiterId,
-      status: 'aberta',
-      table_name_snapshot: tableData?.name || 'Mesa Desconhecida'
+      waiter_id: user.id,
+      status: 'aberta'
     }).select().single()
 
     if (orderError || !newOrder) throw new Error('Erro ao criar comanda')
@@ -90,7 +74,7 @@ export async function openTableAndAddItems(tableId: string, items: any[], assign
   }
 
   // 4. Adicionar itens
-  await addItemsToOrder(orderId, items, assignedWaiterId)
+  await addItemsToOrder(orderId, items)
 
   revalidatePath(`/garcom/mesas`)
   revalidatePath(`/garcom/mesas/${tableId}`)
@@ -108,37 +92,16 @@ export async function deleteOrderItem(itemId: string, orderId: string, itemTotal
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') throw new Error('Sem permissão para remover itens')
 
-  // Removido: Atualização manual do `orders.total` para evitar Race Conditions.
-  // O faturamento agora é calculado somando-se os `order_items` em tempo real.
+  // Subtract from order total
+  const { data: order } = await supabase.from('orders').select('total').eq('id', orderId).single()
+  if (order) {
+    const newTotal = Math.max(0, Number(order.total) - itemTotal)
+    await supabase.from('orders').update({ total: newTotal }).eq('id', orderId)
+  }
 
   // Delete item
   await supabase.from('order_items').delete().eq('id', itemId)
 
   revalidatePath(`/admin/mesas/${tableId}`)
-  revalidatePath(`/admin/dashboard`)
-}
-
-export async function reopenOrder(orderId: string, tableId: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  if (!user) throw new Error('Não autenticado')
-
-  // Verify if it's an admin
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') throw new Error('Sem permissão para reabrir comandas')
-
-  // Reopen table
-  await supabase.from('tables').update({ status: 'aberta' }).eq('id', tableId)
-  
-  // Reopen order (clear closed_at)
-  await supabase.from('orders').update({ 
-    status: 'aberta',
-    closed_at: null 
-  }).eq('id', orderId)
-
-  revalidatePath(`/admin/mesas`)
-  revalidatePath(`/admin/mesas/${tableId}`)
-  revalidatePath(`/garcom/mesas`)
   revalidatePath(`/admin/dashboard`)
 }

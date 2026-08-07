@@ -15,7 +15,7 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
     // Abertas
     const { data: openData } = await supabase
       .from('orders')
-      .select('*, tables(*), order_items(*, products(*)), profiles(name)')
+      .select('*, tables(*), order_items(*, products(*), profiles(name)), profiles(name)')
       .eq('status', 'aberta')
       .order('opened_at', { ascending: false })
     if (openData) setOrders(openData)
@@ -72,8 +72,12 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
     await supabase.from('order_items').update({ status: 'entregue' }).eq('id', itemId)
   }
 
-  const closeOrder = async (orderId: string, tableId: string, orderTotal: number) => {
-    if(!confirm(`Tem certeza que deseja fechar esta comanda no valor de R$ ${orderTotal.toFixed(2)}?`)) return;
+  const closeOrder = async (orderId: string, tableId: string, orderTotal: number, hasPending: boolean) => {
+    if (hasPending) {
+      if(!confirm(`ATENÇÃO: Esta mesa possui itens pendentes (ainda não entregues)!\n\nTem certeza que deseja fechar a comanda no valor de R$ ${orderTotal.toFixed(2)} mesmo assim?`)) return;
+    } else {
+      if(!confirm(`Tem certeza que deseja fechar esta comanda no valor de R$ ${orderTotal.toFixed(2)}?`)) return;
+    }
     
     // 1. Fechar a comanda
     await supabase.from('orders').update({ 
@@ -158,7 +162,7 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
                     <div className="flex justify-between items-start mb-4">
                       <div>
                         <span className="font-bold text-2xl text-amber-500 block mb-1">
-                          Mesa {order.tables?.name || 'Desconhecida'}
+                          Mesa {order.table_name_snapshot || order.tables?.name || 'Desconhecida'}
                         </span>
                         <span className="text-xs text-slate-400 bg-slate-950 px-2 py-1 rounded">
                           Garçom: {order.profiles?.name || 'Desconhecido'}
@@ -169,7 +173,10 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
                           R$ {orderTotal.toFixed(2)}
                         </span>
                         <Button 
-                          onClick={() => closeOrder(order.id, order.tables.id, orderTotal)}
+                          onClick={() => {
+                            const hasPending = order.order_items?.some((oi: any) => oi.status === 'pendente')
+                            closeOrder(order.id, order.tables.id, orderTotal, !!hasPending)
+                          }}
                           variant="destructive"
                           size="sm"
                           className="w-full bg-emerald-600 hover:bg-emerald-700 text-white border-0 font-bold"
@@ -189,6 +196,7 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
                               <span className="flex-1">
                                 <span className="font-bold text-amber-500 mr-2">{oi.quantity}x</span> 
                                 {oi.products?.name}
+                                <span className="text-slate-500 text-[10px] ml-1 uppercase">({oi.profiles?.name || 'Desconhecido'})</span>
                                 {oi.status === 'pendente' && <span className="ml-2 text-yellow-500 text-[10px] font-bold uppercase bg-yellow-500/10 px-1.5 py-0.5 rounded border border-yellow-500/20">Pendente</span>}
                                 {oi.status === 'entregue' && <span className="ml-2 text-emerald-500 text-[10px] font-bold uppercase bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Entregue</span>}
                               </span>

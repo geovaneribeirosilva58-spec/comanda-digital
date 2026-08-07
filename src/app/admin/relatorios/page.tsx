@@ -9,7 +9,7 @@ export default async function AdminRelatoriosPage() {
   // Buscar comandas fechadas e seus itens
   const { data: closedOrders } = await supabase
     .from('orders')
-    .select('id, total, closed_at, waiter_id, profiles(name), order_items(product_id, quantity, unit_price, status, products(name))')
+    .select('id, total, closed_at, waiter_id, profiles(name), order_items(product_id, quantity, unit_price, status, products(name), profiles(name))')
     .eq('status', 'fechada')
     .order('closed_at', { ascending: true })
 

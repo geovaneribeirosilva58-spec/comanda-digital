@@ -7,11 +7,12 @@ import { openTableAndAddItems } from '../../../../garcom/actions'
 import { useRouter } from 'next/navigation'
 import { Minus, Plus, ShoppingCart, Send } from 'lucide-react'
 
-export default function MenuClient({ tableId, categories }: { tableId: string, categories: any }) {
+export default function MenuClient({ tableId, categories, isAdmin, waiters }: { tableId: string, categories: any, isAdmin?: boolean, waiters?: any[] }) {
   const router = useRouter()
   const [cart, setCart] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedWaiter, setSelectedWaiter] = useState('')
 
   const handleAddItem = (product: any) => {
     setCart((prev) => {
@@ -49,7 +50,7 @@ export default function MenuClient({ tableId, categories }: { tableId: string, c
     if (cart.length === 0) return
     setIsSubmitting(true)
     try {
-      await openTableAndAddItems(tableId, cart)
+      await openTableAndAddItems(tableId, cart, selectedWaiter || undefined)
       setCart([])
       router.push(`/admin/mesas/${tableId}`)
     } catch (error) {
@@ -148,6 +149,21 @@ export default function MenuClient({ tableId, categories }: { tableId: string, c
           </div>
           
           <div className="max-w-lg mx-auto">
+            {isAdmin && waiters && (
+              <div className="mb-4 bg-slate-900 border border-slate-800 p-3 rounded-lg shadow-sm">
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Lançar produto em nome de:</label>
+                <select 
+                  className="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded p-2 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+                  value={selectedWaiter}
+                  onChange={(e) => setSelectedWaiter(e.target.value)}
+                >
+                  <option value="">(Administrador) Eu mesmo</option>
+                  {waiters.map(w => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <Button 
               size="lg" 
               className="w-full text-lg h-14 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold tracking-wide"

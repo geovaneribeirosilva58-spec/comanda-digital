@@ -26,6 +26,19 @@ export default function LoginPage() {
             </label>
             <Input id="password" name="password" type="password" required className="mt-1.5" placeholder="******" />
           </div>
+          
+          <div className="flex items-center space-x-2 mt-2">
+            <input 
+              type="checkbox" 
+              id="rememberMe" 
+              name="rememberMe" 
+              className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-amber-500 focus:ring-offset-slate-950" 
+            />
+            <label htmlFor="rememberMe" className="text-sm font-medium text-slate-300 cursor-pointer">
+              Lembrar deste computador
+            </label>
+          </div>
+
           <Button formAction={login} className="w-full mt-4 text-slate-950 font-bold text-base h-12" type="submit">
             Entrar no Sistema
           </Button>

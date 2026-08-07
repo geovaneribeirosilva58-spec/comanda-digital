@@ -11,7 +11,7 @@ export default async function AdminProdutosPage() {
   async function createProduct(formData: FormData) {
     'use server'
     const name = formData.get('name') as string
-    const category = formData.get('category') as string
+    const category = (formData.get('category') as string).toUpperCase()
     const priceStr = formData.get('price') as string
     const price = parseFloat(priceStr.replace(',', '.'))
 
@@ -27,13 +27,16 @@ export default async function AdminProdutosPage() {
     revalidatePath('/admin/produtos')
   }
 
-  async function updateProductPrice(formData: FormData) {
+  async function updateProductFull(formData: FormData) {
     'use server'
     const id = formData.get('id') as string
+    const name = formData.get('name') as string
+    const category = (formData.get('category') as string).toUpperCase()
     const priceStr = formData.get('price') as string
     const price = parseFloat(priceStr.replace(',', '.'))
+    
     const supabase = await createClient()
-    await supabase.from('products').update({ price }).eq('id', id)
+    await supabase.from('products').update({ name, category, price }).eq('id', id)
     revalidatePath('/admin/produtos')
   }
 
@@ -52,7 +55,7 @@ export default async function AdminProdutosPage() {
           </div>
           <div className="w-48">
             <label className="text-sm text-slate-400 mb-1 block">Categoria</label>
-            <Input name="category" placeholder="Ex: Bebidas" required />
+            <Input name="category" placeholder="Ex: BEBIDAS" className="uppercase" required />
           </div>
           <div className="w-32">
             <label className="text-sm text-slate-400 mb-1 block">Preço (R$)</label>
@@ -64,7 +67,7 @@ export default async function AdminProdutosPage() {
 
       <ProductsClient 
         products={products || []} 
-        updateProductPrice={updateProductPrice}
+        updateProductFull={updateProductFull}
         toggleProductStatus={toggleProductStatus}
       />
     </div>

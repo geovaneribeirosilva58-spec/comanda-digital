@@ -9,7 +9,7 @@ export default async function AdminDashboardPage() {
   // Buscar mesas abertas com suas comandas e itens pendentes/entregues
   const { data: openOrders } = await supabase
     .from('orders')
-    .select('*, tables(*), order_items(*, products(*)), profiles(name)')
+    .select('*, tables(*), order_items(*, products(*), profiles(name)), profiles(name)')
     .eq('status', 'aberta')
     .order('opened_at', { ascending: false })
 

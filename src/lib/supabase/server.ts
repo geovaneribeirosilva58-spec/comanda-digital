@@ -1,4 +1,4 @@
-﻿import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 export async function createClient() {
@@ -14,9 +14,15 @@ export async function createClient() {
         },
         setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) =>
+            const rememberMe = cookieStore.get('remember_me')?.value === 'true'
+            cookiesToSet.forEach(({ name, value, options }) => {
+              if (!rememberMe && value !== '') {
+                // If the user did not check 'remember me', make it a session cookie
+                delete options.maxAge
+                delete options.expires
+              }
               cookieStore.set(name, value, options)
-            )
+            })
           } catch (error) {
             // Pode ser ignorado caso chamado a partir de um Server Component
           }
