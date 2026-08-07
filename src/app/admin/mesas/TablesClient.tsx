@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import Link from 'next/link'
-import { Edit2, Check, X, Trash2 } from 'lucide-react'
+import { Edit2, Check, X, Trash2, QrCode } from 'lucide-react'
+import { QRCodeCanvas } from 'qrcode.react'
 
 type Table = {
   id: string
@@ -23,6 +24,7 @@ interface TablesClientProps {
 export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDeleteTable }: TablesClientProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
+  const [qrTableId, setQrTableId] = useState<string | null>(null)
 
   const handleEditClick = (table: Table) => {
     setEditingId(table.id)
@@ -98,21 +100,33 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
                 <div className="flex items-center justify-end gap-2">
                   <Link href={`/admin/mesas/${table.id}`}>
                     <Button variant="default" size="sm" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold">
-                      {table.status === 'livre' ? 'Abrir Comanda' : 'Ver Comanda'}
+                      Acessar Comanda
                     </Button>
                   </Link>
-                  <Button variant={table.active ? "destructive" : "secondary"} size="sm" onClick={() => onToggleStatus(table.id, table.active)}>
+                  <Button variant="outline" size="sm" onClick={() => setQrTableId(table.id)} className="border-amber-500/50 text-amber-500 hover:bg-amber-500/10">
+                    <QrCode className="w-4 h-4 mr-1" />
+                    QR Code
+                  </Button>
+                  <Button 
+                    variant="secondary" 
+                    size="sm"
+                    onClick={() => onToggleStatus(table.id, table.active)}
+                    className="w-24 text-slate-300 border border-slate-700 hover:bg-slate-800"
+                  >
                     {table.active ? 'Desativar' : 'Ativar'}
                   </Button>
-                  {table.status === 'livre' && (
-                    <Button variant="destructive" size="sm" className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20" onClick={() => {
-                      if(window.confirm('Tem certeza que deseja apagar esta mesa permanentemente?')) {
-                        onDeleteTable(table.id);
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      if(confirm('Tem certeza que deseja apagar essa mesa? Todas as comandas vinculadas a ela serão perdidas.')) {
+                        onDeleteTable(table.id)
                       }
-                    }}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
+                    }}
+                    className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               </td>
             </tr>
@@ -126,6 +140,34 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
           )}
         </tbody>
       </table>
+
+      {/* QR Code Modal */}
+      {qrTableId && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-sm w-full flex flex-col items-center relative">
+            <button onClick={() => setQrTableId(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
+              <X className="w-6 h-6" />
+            </button>
+            <h3 className="text-xl font-bold text-amber-500 mb-6">QR Code da Mesa</h3>
+            <div className="bg-white p-4 rounded-xl mb-6">
+              <QRCodeCanvas 
+                value={`${window.location.origin}/cliente/mesa/${qrTableId}`} 
+                size={200}
+                bgColor={"#ffffff"}
+                fgColor={"#000000"}
+                level={"H"}
+                includeMargin={false}
+              />
+            </div>
+            <p className="text-center text-sm text-slate-400 mb-4 font-bold">
+              Aponte a câmera do seu Smartphone e leia o QR-code para Chamar o Garçom
+            </p>
+            <Button onClick={() => window.print()} className="w-full font-bold bg-amber-500 hover:bg-amber-600 text-slate-950">
+              Imprimir QR Code
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -100,7 +100,7 @@ export default async function ComandaPage({ params }: { params: { id: string } }
                           <h4 className="font-bold text-slate-400 text-xs uppercase tracking-wider mb-1">Comanda #{closedOrder.id.split('-')[0]}</h4>
                           <p className="text-slate-500 text-xs">{new Date(closedOrder.closed_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
                         </div>
-                        <p className="text-amber-500 font-black text-xl">R$ {Number(closedOrder.total).toFixed(2)}</p>
+                        <p className="text-amber-500 font-black text-xl">R$ {(Number(closedOrder.total) > 0 ? Number(closedOrder.total) : (closedOrder.order_items?.reduce((acc: number, oi: any) => acc + (oi.status !== 'cancelado' ? oi.quantity * oi.unit_price : 0), 0) || 0)).toFixed(2)}</p>
                       </div>
                       
                       <div className="text-xs text-slate-400 mb-4 line-clamp-2">

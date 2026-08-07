@@ -25,11 +25,17 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
     today.setHours(0,0,0,0)
     const { data: closedData } = await supabase
       .from('orders')
-      .select('total')
+      .select('total, order_items(quantity, unit_price, status)')
       .eq('status', 'fechada')
       .gte('closed_at', today.toISOString())
     if (closedData) {
-      setTotalFechado(closedData.reduce((acc, o) => acc + Number(o.total), 0))
+      setTotalFechado(closedData.reduce((acc, o) => {
+        let orderTotal = Number(o.total) || 0
+        if (orderTotal === 0 && o.order_items) {
+          orderTotal = o.order_items.reduce((iAcc: number, oi: any) => iAcc + (oi.status !== 'cancelado' ? oi.quantity * oi.unit_price : 0), 0)
+        }
+        return acc + orderTotal
+      }, 0))
     }
   }
 
@@ -82,7 +88,8 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
     // 1. Fechar a comanda
     await supabase.from('orders').update({ 
       status: 'fechada', 
-      closed_at: new Date().toISOString() 
+      closed_at: new Date().toISOString(),
+      total: orderTotal
     }).eq('id', orderId)
 
     // 2. Liberar a mesa

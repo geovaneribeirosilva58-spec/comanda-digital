@@ -3,15 +3,16 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search } from 'lucide-react'
+import { Search, Trash2 } from 'lucide-react'
 
 interface ProductsClientProps {
   products: any[]
   updateProductFull: (formData: FormData) => Promise<void>
   toggleProductStatus: (id: string, currentActive: boolean) => Promise<void>
+  deleteProduct: (id: string) => Promise<void>
 }
 
-export default function ProductsClient({ products, updateProductFull, toggleProductStatus }: ProductsClientProps) {
+export default function ProductsClient({ products, updateProductFull, toggleProductStatus, deleteProduct }: ProductsClientProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
 
@@ -94,6 +95,15 @@ export default function ProductsClient({ products, updateProductFull, toggleProd
                     <form action={() => toggleProductStatus(product.id, product.active)}>
                       <Button variant={product.active ? "destructive" : "secondary"} size="sm">
                         {product.active ? 'Desativar' : 'Ativar'}
+                      </Button>
+                    </form>
+                    <form action={() => {
+                      if(window.confirm('Tem certeza que deseja apagar este produto permanentemente?')) {
+                        deleteProduct(product.id)
+                      }
+                    }}>
+                      <Button variant="destructive" size="sm" className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border-0">
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </form>
                   </td>

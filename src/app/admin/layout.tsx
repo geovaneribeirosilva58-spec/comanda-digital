@@ -3,6 +3,7 @@ import { LayoutDashboard, Users, Grid2X2, Package, LogOut, Beer, BarChart3 } fro
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { CallListener } from '@/components/CallListener'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -65,6 +66,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           {children}
         </div>
       </main>
+      <CallListener />
     </div>
   )
 }

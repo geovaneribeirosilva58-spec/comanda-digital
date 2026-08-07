@@ -39,8 +39,9 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const isAuthRoute = request.nextUrl.pathname === '/login'
+  const isClientRoute = request.nextUrl.pathname.startsWith('/cliente/mesa')
 
-  // Redirecionar usuÃ¡rio logado fora do admin/garcom para sua Ã¡rea respectiva
+  // Redirecionar usuário logado fora do admin/garcom para sua área respectiva
   if (user && (request.nextUrl.pathname === '/' || isAuthRoute)) {
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
     
@@ -50,8 +51,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/garcom/mesas', request.url))
   }
 
-  // Redirecionar usuÃ¡rio nÃ£o logado para login se acessar rotas protegidas
-  if (!user && !isAuthRoute && !request.nextUrl.pathname.startsWith('/_next') && !request.nextUrl.pathname.startsWith('/api') && !request.nextUrl.pathname.startsWith('/favicon.ico')) {
+  // Redirecionar usuário não logado para login se acessar rotas protegidas
+  if (!user && !isAuthRoute && !isClientRoute && !request.nextUrl.pathname.startsWith('/_next') && !request.nextUrl.pathname.startsWith('/api') && !request.nextUrl.pathname.startsWith('/favicon.ico')) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 

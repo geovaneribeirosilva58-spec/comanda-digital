@@ -40,6 +40,13 @@ export default async function AdminProdutosPage() {
     revalidatePath('/admin/produtos')
   }
 
+  async function deleteProduct(id: string) {
+    'use server'
+    const supabase = await createClient()
+    await supabase.from('products').delete().eq('id', id)
+    revalidatePath('/admin/produtos')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -69,6 +76,7 @@ export default async function AdminProdutosPage() {
         products={products || []} 
         updateProductFull={updateProductFull}
         toggleProductStatus={toggleProductStatus}
+        deleteProduct={deleteProduct}
       />
     </div>
   )
