@@ -44,9 +44,10 @@ export default async function ComandaPage({ params }: { params: { id: string } }
 
   async function markDelivered(formData: FormData) {
     'use server'
-    const itemId = formData.get('itemId') as string
+    const itemIdsStr = formData.get('itemIds') as string
+    const itemIds = itemIdsStr.split(',')
     const supabase = await createClient()
-    await supabase.from('order_items').update({ status: 'entregue' }).eq('id', itemId)
+    await supabase.from('order_items').update({ status: 'entregue' }).in('id', itemIds)
     revalidatePath(`/admin/mesas/${tableId}`)
   }
 
@@ -104,7 +105,22 @@ export default async function ComandaPage({ params }: { params: { id: string } }
                       </div>
                       
                       <div className="text-xs text-slate-400 mb-4 line-clamp-2">
-                        {closedOrder.order_items?.map((i: any) => `${i.quantity}x ${i.products?.name} (${i.profiles?.name || 'Desconhecido'})`).join(', ')}
+                        {(() => {
+                          const groupedClosedItems = closedOrder.order_items?.reduce((acc: any[], item: any) => {
+                            const existing = acc.find(i => 
+                              i.product_id === item.product_id && 
+                              i.status === item.status && 
+                              i.note === item.note
+                            )
+                            if (existing) {
+                              existing.quantity += item.quantity
+                            } else {
+                              acc.push({ ...item })
+                            }
+                            return acc
+                          }, []) || []
+                          return groupedClosedItems.map((i: any) => `${i.quantity}x ${i.products?.name} (${i.profiles?.name || 'Desconhecido'})`).join(', ')
+                        })()}
                       </div>
 
                       <form action={reopenOrder.bind(null, closedOrder.id, tableId)}>
@@ -118,53 +134,78 @@ export default async function ComandaPage({ params }: { params: { id: string } }
                 </div>
               )}
             </div>
+        <div className="divide-y divide-slate-800/50">
+          {!order ? (
+            <div className="p-8 text-center text-slate-500">
+              Mesa livre. Clique em + para abrir a comanda.
+            </div>
           ) : order.order_items?.length === 0 ? (
             <div className="p-8 text-center text-slate-500">
               A comanda está aberta, mas nenhum item foi lançado ainda.
             </div>
           ) : (
-            order.order_items?.map((item: any) => (
-              <div key={item.id} className="p-4 flex justify-between items-start">
-                <div>
-                  <div className="font-medium text-slate-200 flex items-center">
-                    <span className="bg-slate-800 text-amber-500 text-xs font-bold px-2 py-0.5 rounded mr-2 border border-slate-700">
-                      {item.quantity}x
-                    </span>
-                    {item.products?.name}
-                    <span className="text-slate-500 text-xs ml-2 uppercase">({item.profiles?.name || 'Desconhecido'})</span>
-                  </div>
-                  {item.note && (
-                    <p className="text-sm text-amber-500/70 mt-1 italic">Obs: {item.note}</p>
-                  )}
-                  <div className="mt-2">
-                    {item.status === 'pendente' && (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center text-xs font-medium text-yellow-500 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded">
-                          <Clock className="w-3 h-3 mr-1"/> Pendente
-                        </span>
-                        <form action={markDelivered}>
-                          <input type="hidden" name="itemId" value={item.id} />
-                          <button type="submit" className="text-xs font-bold bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-slate-900 border border-emerald-500/50 px-2 py-0.5 rounded transition-colors">
-                            ✔ Marcar Entregue
-                          </button>
-                        </form>
-                      </div>
+            (() => {
+              const groupedItems = order.order_items?.reduce((acc: any[], item: any) => {
+                const existing = acc.find(i => 
+                  i.product_id === item.product_id && 
+                  i.status === item.status && 
+                  i.note === item.note
+                )
+                if (existing) {
+                  existing.quantity += item.quantity
+                  existing.groupedIds.push(item.id)
+                } else {
+                  acc.push({
+                    ...item,
+                    groupedIds: [item.id]
+                  })
+                }
+                return acc
+              }, []) || []
+
+              return groupedItems.map((item: any) => (
+                <div key={item.groupedIds.join('-')} className="p-4 flex justify-between items-start">
+                  <div>
+                    <div className="font-medium text-slate-200 flex items-center">
+                      <span className="bg-slate-800 text-amber-500 text-xs font-bold px-2 py-0.5 rounded mr-2 border border-slate-700">
+                        {item.quantity}x
+                      </span>
+                      {item.products?.name}
+                      <span className="text-slate-500 text-xs ml-2 uppercase">({item.profiles?.name || 'Desconhecido'})</span>
+                    </div>
+                    {item.note && (
+                      <p className="text-sm text-amber-500/70 mt-1 italic">Obs: {item.note}</p>
                     )}
-                    {item.status === 'entregue' && <span className="inline-flex items-center text-xs font-medium text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded"><CheckCircle className="w-3 h-3 mr-1"/> Entregue</span>}
-                    {item.status === 'cancelado' && <span className="inline-flex items-center text-xs font-medium text-red-500 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded">Cancelado</span>}
-                    
-                    <form action={deleteOrderItem.bind(null, item.id, order.id, item.unit_price * item.quantity, tableId)} className="mt-2">
-                      <button type="submit" className="inline-flex items-center text-xs font-bold bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/50 px-2 py-1 rounded transition-colors">
-                        <Trash className="w-3 h-3 mr-1"/> Remover
-                      </button>
-                    </form>
+                    <div className="mt-2">
+                      {item.status === 'pendente' && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex items-center text-xs font-medium text-yellow-500 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded">
+                            <Clock className="w-3 h-3 mr-1"/> Pendente
+                          </span>
+                          <form action={markDelivered}>
+                            <input type="hidden" name="itemIds" value={item.groupedIds.join(',')} />
+                            <button type="submit" className="text-xs font-bold bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-slate-900 border border-emerald-500/50 px-2 py-0.5 rounded transition-colors">
+                              ✔ Marcar Entregue
+                            </button>
+                          </form>
+                        </div>
+                      )}
+                      {item.status === 'entregue' && <span className="inline-flex items-center text-xs font-medium text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded"><CheckCircle className="w-3 h-3 mr-1"/> Entregue</span>}
+                      {item.status === 'cancelado' && <span className="inline-flex items-center text-xs font-medium text-red-500 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded">Cancelado</span>}
+                      
+                      <form action={deleteOrderItem.bind(null, item.groupedIds[0], order.id, item.unit_price * item.quantity, tableId)} className="mt-2">
+                        <button type="submit" className="inline-flex items-center text-xs font-bold bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/50 px-2 py-1 rounded transition-colors">
+                          <Trash className="w-3 h-3 mr-1"/> Remover
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                  <div className="font-semibold text-amber-500">
+                    R$ {(item.unit_price * item.quantity).toFixed(2)}
                   </div>
                 </div>
-                <div className="font-semibold text-amber-500">
-                  R$ {(item.unit_price * item.quantity).toFixed(2)}
-                </div>
-              </div>
-            ))
+              ))
+            })()
           )}
         </div>
       </div>

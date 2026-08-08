@@ -63,19 +63,32 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
     }
   }, [supabase])
 
-  const pendingItems = orders.flatMap(order => 
-    (order.order_items || [])
-      .filter((i: any) => i.status === 'pendente')
-      .map((i: any) => ({ ...i, table_name: order.tables?.name, order_id: order.id }))
-  ).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  const pendingItems = (() => {
+    const rawPending = orders.flatMap((o: any) => 
+      (o.order_items || [])
+        .filter((oi: any) => oi.status === 'pendente')
+        .map((oi: any) => ({ ...oi, table_name: o.tables?.name }))
+    ).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+    return rawPending.reduce((acc: any[], item: any) => {
+      const existing = acc.find(i => i.product_id === item.product_id && i.table_name === item.table_name && i.note === item.note)
+      if (existing) {
+        existing.quantity += item.quantity
+        existing.groupedIds.push(item.id)
+      } else {
+        acc.push({ ...item, groupedIds: [item.id] })
+      }
+      return acc
+    }, [])
+  })()
 
   const totalFaturamentoAberto = orders.reduce((acc: number, order: any) => {
     const orderTotal = order.order_items?.reduce((itemAcc: number, oi: any) => itemAcc + (oi.status !== 'cancelado' ? oi.unit_price * oi.quantity : 0), 0) || 0
     return acc + orderTotal
   }, 0)
 
-  const markAsDelivered = async (itemId: string) => {
-    await supabase.from('order_items').update({ status: 'entregue' }).eq('id', itemId)
+  const markAsDelivered = async (itemIds: string[]) => {
+    await supabase.from('order_items').update({ status: 'entregue' }).in('id', itemIds)
   }
 
   const closeOrder = async (orderId: string, tableId: string, orderTotal: number, hasPending: boolean) => {
@@ -196,24 +209,36 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
                     
                     <div className="bg-slate-950 rounded p-4 text-sm border border-slate-800/50">
                       <h4 className="text-slate-400 text-xs font-bold uppercase mb-2">Itens da Comanda:</h4>
-                      {order.order_items && order.order_items.length > 0 ? (
-                        <ul className="space-y-2">
-                          {order.order_items.map((oi: any) => (
-                            <li key={oi.id} className={`flex justify-between items-center ${oi.status === 'cancelado' ? 'text-red-400/50 line-through' : 'text-slate-300'}`}>
-                              <span className="flex-1">
-                                <span className="font-bold text-amber-500 mr-2">{oi.quantity}x</span> 
-                                {oi.products?.name}
-                                <span className="text-slate-500 text-[10px] ml-1 uppercase">({oi.profiles?.name || 'Desconhecido'})</span>
-                                {oi.status === 'pendente' && <span className="ml-2 text-yellow-500 text-[10px] font-bold uppercase bg-yellow-500/10 px-1.5 py-0.5 rounded border border-yellow-500/20">Pendente</span>}
-                                {oi.status === 'entregue' && <span className="ml-2 text-emerald-500 text-[10px] font-bold uppercase bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Entregue</span>}
-                              </span>
-                              <span className="text-slate-400 font-medium whitespace-nowrap ml-4">R$ {(oi.unit_price * oi.quantity).toFixed(2)}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <span className="italic text-slate-500">Nenhum item lançado.</span>
-                      )}
+                      {(() => {
+                        const groupedItems = (order.order_items || []).reduce((acc: any[], item: any) => {
+                          const existing = acc.find(i => i.product_id === item.product_id && i.status === item.status && i.note === item.note)
+                          if (existing) {
+                            existing.quantity += item.quantity
+                          } else {
+                            acc.push({ ...item })
+                          }
+                          return acc
+                        }, [])
+                        
+                        return groupedItems.length > 0 ? (
+                          <ul className="space-y-2">
+                            {groupedItems.map((oi: any) => (
+                              <li key={oi.id} className={`flex justify-between items-center ${oi.status === 'cancelado' ? 'text-red-400/50 line-through' : 'text-slate-300'}`}>
+                                <span className="flex-1">
+                                  <span className="font-bold text-amber-500 mr-2">{oi.quantity}x</span> 
+                                  {oi.products?.name}
+                                  <span className="text-slate-500 text-[10px] ml-1 uppercase">({oi.profiles?.name || 'Desconhecido'})</span>
+                                  {oi.status === 'pendente' && <span className="ml-2 text-yellow-500 text-[10px] font-bold uppercase bg-yellow-500/10 px-1.5 py-0.5 rounded border border-yellow-500/20">Pendente</span>}
+                                  {oi.status === 'entregue' && <span className="ml-2 text-emerald-500 text-[10px] font-bold uppercase bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Entregue</span>}
+                                </span>
+                                <span className="text-slate-400 font-medium whitespace-nowrap ml-4">R$ {(oi.unit_price * oi.quantity).toFixed(2)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <span className="italic text-slate-500">Nenhum item lançado.</span>
+                        )
+                      })()}
                     </div>
                   </div>
                 )})}
@@ -236,7 +261,7 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
             ) : (
               <div className="divide-y divide-slate-800">
                 {pendingItems.map((item: any) => (
-                  <div key={item.id} className="p-5 flex items-center justify-between hover:bg-slate-800/50 transition-colors">
+                  <div key={item.groupedIds.join('-')} className="p-5 flex items-center justify-between hover:bg-slate-800/50 transition-colors">
                     <div className="flex flex-col">
                       <span className="font-bold text-xl text-slate-200 mb-1">
                         <span className="text-amber-500">{item.quantity}x</span> {item.products?.name}
@@ -254,7 +279,7 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
                       </span>
                     </div>
                     <button
-                      onClick={() => markAsDelivered(item.id)}
+                      onClick={() => markAsDelivered(item.groupedIds)}
                       className="flex flex-col items-center justify-center p-4 rounded-xl bg-slate-800 hover:bg-emerald-500/20 text-slate-400 hover:text-emerald-500 hover:border-emerald-500/50 border border-transparent transition-all shrink-0 ml-4"
                       title="Marcar como entregue"
                     >
