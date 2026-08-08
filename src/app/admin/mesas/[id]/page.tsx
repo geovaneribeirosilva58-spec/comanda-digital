@@ -134,11 +134,6 @@ export default async function ComandaPage({ params }: { params: { id: string } }
                 </div>
               )}
             </div>
-        <div className="divide-y divide-slate-800/50">
-          {!order ? (
-            <div className="p-8 text-center text-slate-500">
-              Mesa livre. Clique em + para abrir a comanda.
-            </div>
           ) : order.order_items?.length === 0 ? (
             <div className="p-8 text-center text-slate-500">
               A comanda está aberta, mas nenhum item foi lançado ainda.
