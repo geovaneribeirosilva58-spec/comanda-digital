@@ -118,9 +118,13 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => {
+                    onClick={async () => {
                       if(confirm('Tem certeza que deseja apagar essa mesa? Todas as comandas vinculadas a ela serão perdidas.')) {
-                        onDeleteTable(table.id)
+                        try {
+                          await onDeleteTable(table.id)
+                        } catch (err: any) {
+                          alert('Erro ao apagar mesa: ' + err.message)
+                        }
                       }
                     }}
                     className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border-0"

@@ -33,7 +33,23 @@ export default async function AdminMesasPage() {
   async function deleteTable(id: string) {
     'use server'
     const supabase = await createClient()
-    await supabase.from('tables').delete().eq('id', id)
+    
+    // Buscar comandas vinculadas
+    const { data: orders } = await supabase.from('orders').select('id').eq('table_id', id)
+    if (orders && orders.length > 0) {
+      const orderIds = orders.map(o => o.id)
+      // Apagar itens das comandas
+      await supabase.from('order_items').delete().in('order_id', orderIds)
+    }
+    // Apagar as comandas
+    await supabase.from('orders').delete().eq('table_id', id)
+
+    // Apagar a mesa
+    const { error } = await supabase.from('tables').delete().eq('id', id)
+    if (error) {
+      throw new Error(error.message)
+    }
+    
     revalidatePath('/admin/mesas')
   }
 
