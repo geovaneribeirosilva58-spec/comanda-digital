@@ -13,6 +13,13 @@ export function CallListener() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
+  const playBell = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0
+      audioRef.current.play().catch(e => console.log('Autoplay bloqueado. O usuário precisa interagir com a tela primeiro.', e))
+    }
+  }
+
   useEffect(() => {
     // Carregar chamados pendentes ao iniciar
     const fetchPendingCalls = async () => {
@@ -63,13 +70,6 @@ export function CallListener() {
       supabase.removeChannel(subscription)
     }
   }, [supabase])
-
-  const playBell = () => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0
-      audioRef.current.play().catch(e => console.log('Autoplay bloqueado. O usuário precisa interagir com a tela primeiro.', e))
-    }
-  }
 
   // Loop de alarme: Toca a cada 30 segundos se houver chamados pendentes
   useEffect(() => {
