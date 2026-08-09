@@ -25,7 +25,7 @@ interface TablesClientProps {
 export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDeleteTable }: TablesClientProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
-  const [qrTableId, setQrTableId] = useState<string | null>(null)
+  const [showGlobalQr, setShowGlobalQr] = useState(false)
   const [isPending, startTransition] = useTransition()
   const supabase = createClient()
 
@@ -49,9 +49,17 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
   }
 
   return (
-    <div className="bg-slate-900 rounded-lg border border-slate-800 overflow-hidden overflow-x-auto">
-      <table className="w-full text-sm text-left">
-        <thead className="text-xs uppercase bg-slate-950 text-slate-400">
+    <div className="space-y-4">
+      <div className="flex justify-end mb-4">
+        <Button onClick={() => setShowGlobalQr(true)} variant="secondary" className="bg-amber-500 text-slate-950 hover:bg-amber-600 font-bold">
+          <QrCode className="w-5 h-5 mr-2" />
+          Imprimir QR Code Geral
+        </Button>
+      </div>
+
+      <div className="bg-slate-900 rounded-lg border border-slate-800 overflow-hidden overflow-x-auto">
+        <table className="w-full text-sm text-left">
+          <thead className="text-xs uppercase bg-slate-950 text-slate-400">
           <tr>
             <th className="px-6 py-4 font-medium">Nome</th>
             <th className="px-6 py-4 font-medium">Status da Comanda</th>
@@ -108,10 +116,6 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
                       Acessar Comanda
                     </Button>
                   </Link>
-                  <Button variant="outline" size="sm" onClick={() => setQrTableId(table.id)} className="border-amber-500/50 text-amber-500 hover:bg-amber-500/10">
-                    <QrCode className="w-4 h-4 mr-1" />
-                    QR Code
-                  </Button>
                   <Button 
                     variant="secondary" 
                     size="sm"
@@ -158,31 +162,31 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
           )}
         </tbody>
       </table>
+      </div>
 
-      {/* QR Code Modal */}
-      {qrTableId && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-sm w-full flex flex-col items-center relative">
-            <button onClick={() => setQrTableId(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
-              <X className="w-6 h-6" />
-            </button>
-            <h3 className="text-xl font-bold text-amber-500 mb-6">QR Code da Mesa</h3>
+      {showGlobalQr && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl flex flex-col items-center max-w-sm w-full">
+            <h3 className="text-2xl font-bold text-amber-500 mb-6 text-center">QR Code Geral</h3>
             <div className="bg-white p-4 rounded-xl mb-6">
               <QRCodeCanvas 
-                value={`${window.location.origin}/cliente/mesa/${qrTableId}`} 
-                size={200}
-                bgColor={"#ffffff"}
-                fgColor={"#000000"}
-                level={"H"}
+                value={`${window.location.origin}/cliente`} 
+                size={220}
+                level="H"
                 includeMargin={false}
               />
             </div>
-            <p className="text-center text-sm text-slate-400 mb-4 font-bold">
-              Aponte a câmera do seu Smartphone e leia o QR-code para Chamar o Garçom
+            <p className="text-slate-400 text-center mb-8 text-sm">
+              Os clientes poderão escanear este QR Code de qualquer lugar e selecionar a mesa em que estão sentados.
             </p>
-            <Button onClick={() => window.print()} className="w-full font-bold bg-amber-500 hover:bg-amber-600 text-slate-950">
-              Imprimir QR Code
-            </Button>
+            <div className="flex gap-4 w-full">
+              <Button onClick={() => window.print()} className="flex-1 bg-amber-500 text-slate-950 hover:bg-amber-600 font-bold">
+                Imprimir
+              </Button>
+              <Button onClick={() => setShowGlobalQr(false)} variant="ghost" className="flex-1 text-slate-400 hover:text-white hover:bg-slate-800">
+                Fechar
+              </Button>
+            </div>
           </div>
         </div>
       )}
