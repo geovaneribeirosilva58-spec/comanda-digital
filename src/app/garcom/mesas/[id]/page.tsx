@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Plus, Clock, CheckCircle } from 'lucide-react'
 import { revalidatePath } from 'next/cache'
+import { SubmitButton } from '@/components/SubmitButton'
 
 export const revalidate = 0
 
@@ -120,9 +121,9 @@ export default async function ComandaPage({ params }: { params: { id: string } }
                           </span>
                           <form action={markDelivered}>
                             <input type="hidden" name="itemIds" value={item.groupedIds.join(',')} />
-                            <button type="submit" className="text-xs font-bold bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-slate-900 border border-emerald-500/50 px-2 py-0.5 rounded transition-colors">
+                            <SubmitButton className="text-xs font-bold bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500 hover:text-slate-900 border border-emerald-500/50 px-2 py-0.5 rounded transition-colors">
                               ✔ Marcar Entregue
-                            </button>
+                            </SubmitButton>
                           </form>
                         </div>
                       )}

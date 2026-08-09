@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Receipt, UtensilsCrossed, CheckCircle, Clock, Banknote, CheckSquare, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 
 export default function DashboardClient({ initialOrders, initialTotalFechado }: { initialOrders: any[], initialTotalFechado: number }) {
   const [orders, setOrders] = useState(initialOrders || [])
   const [totalFechado, setTotalFechado] = useState(initialTotalFechado || 0)
+  const [isPending, setIsPending] = useState(false)
   const supabase = createClient()
 
   // Função para recarregar as comandas
@@ -91,25 +93,39 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
     await supabase.from('order_items').update({ status: 'entregue' }).in('id', itemIds)
   }
 
-  const closeOrder = async (orderId: string, tableId: string, orderTotal: number, hasPending: boolean, totalRemaining: number) => {
-    if (hasPending) {
-      if(!confirm(`ATENÇÃO: Esta mesa possui itens pendentes (ainda não entregues)!\n\nTem certeza que deseja fechar a comanda mesmo assim? (Faturamento Bruto R$ ${orderTotal.toFixed(2)}, Restante a Receber: R$ ${totalRemaining.toFixed(2)})`)) return;
-    } else {
-      if(!confirm(`Tem certeza que deseja fechar esta comanda?\n(Faturamento Bruto R$ ${orderTotal.toFixed(2)}, Restante a Receber: R$ ${totalRemaining.toFixed(2)})`)) return;
-    }
+  const closeOrder = async (orderId: string, tableId: string, orderItems: any[]) => {
+    if(!confirm("Deseja realmente fechar esta comanda?")) return;
     
-    // 1. Fechar a comanda - gravamos o faturamento BRUTO na comanda (soma apenas dos itens positivos)
-    await supabase.from('orders').update({ 
-      status: 'fechada', 
-      closed_at: new Date().toISOString(),
-      total: orderTotal
-    }).eq('id', orderId)
+    setIsPending(true)
+    try {
+      // Calcular total (incluindo pagamentos parciais)
+      const finalTotal = orderItems.reduce((acc: number, item: any) => acc + (item.quantity * item.unit_price), 0)
+      
+      // O faturamento bruto do bar é a soma apenas dos itens positivos (produtos reais)
+      const orderTotal = orderItems.reduce((acc: number, item: any) => {
+        if (item.unit_price > 0) {
+          return acc + (item.quantity * item.unit_price)
+        }
+        return acc
+      }, 0)
+      
+      // 1. Fechar a comanda - gravamos o faturamento BRUTO na comanda
+      await supabase.from('orders').update({ 
+        status: 'fechada', 
+        closed_at: new Date().toISOString(),
+        total: orderTotal
+      }).eq('id', orderId)
 
-    // 2. Liberar a mesa
-    await supabase.from('tables').update({ status: 'livre' }).eq('id', tableId)
-    
-    // A tela vai recarregar sozinha pelos websockets, mas forçamos um fetch
-    fetchOrders()
+      // 2. Liberar a mesa
+      await supabase.from('tables').update({ status: 'livre' }).eq('id', tableId)
+      
+      toast.success("Comanda fechada com sucesso!")
+      fetchOrders()
+    } catch (err: any) {
+      toast.error("Erro ao fechar comanda: " + err.message)
+    } finally {
+      setIsPending(false)
+    }
   }
 
   const addPartialPayment = async (orderId: string, remainingTotal: number) => {
@@ -117,31 +133,43 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
     if (!amountStr) return
     const amount = parseFloat(amountStr.replace(',', '.'))
     if (isNaN(amount) || amount <= 0) {
-      alert("Valor inválido!")
+      toast.error("Valor inválido!")
       return
     }
 
-    // Criar um item de "Pagamento Parcial" na comanda
-    await supabase.from('order_items').insert([{
-      order_id: orderId,
-      quantity: 1,
-      unit_price: -amount,
-      status: 'entregue',
-      note: 'Pagamento Parcial'
-    }])
+    setIsPending(true)
+    try {
+      await supabase.from('order_items').insert([{
+        order_id: orderId,
+        quantity: 1,
+        unit_price: -amount,
+        status: 'entregue',
+        note: 'Pagamento Parcial'
+      }])
+      toast.success(`Pagamento parcial de R$ ${amount.toFixed(2)} registrado!`)
+    } catch (err: any) {
+      toast.error("Erro ao registrar pagamento: " + err.message)
+    } finally {
+      setIsPending(false)
+    }
   }
 
   const deleteOrder = async (orderId: string, tableId: string) => {
     if(!confirm("TEM CERTEZA ABSOLUTA QUE DESEJA APAGAR ESTA COMANDA?\n\nEsta ação irá remover permanentemente a comanda e todos os seus itens do banco de dados, e não aparecerá nos relatórios.")) return;
     
-    // 1. Apagar itens da comanda
-    await supabase.from('order_items').delete().eq('order_id', orderId)
-    // 2. Apagar a comanda
-    await supabase.from('orders').delete().eq('id', orderId)
-    // 3. Liberar a mesa
-    await supabase.from('tables').update({ status: 'livre' }).eq('id', tableId)
-    
-    fetchOrders()
+    setIsPending(true)
+    try {
+      await supabase.from('order_items').delete().eq('order_id', orderId)
+      await supabase.from('orders').delete().eq('id', orderId)
+      await supabase.from('tables').update({ status: 'livre' }).eq('id', tableId)
+      
+      toast.success("Comanda apagada com sucesso!")
+      fetchOrders()
+    } catch (err: any) {
+      toast.error("Erro ao apagar comanda: " + err.message)
+    } finally {
+      setIsPending(false)
+    }
   }
 
   return (
@@ -238,6 +266,7 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
                           <Button 
                             onClick={() => addPartialPayment(order.id, orderTotalRemaining)}
                             variant="secondary"
+                            disabled={isPending}
                             size="sm"
                             className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 font-bold"
                           >
@@ -246,10 +275,10 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
                           </Button>
                           <Button 
                             onClick={() => {
-                              const hasPending = order.order_items?.some((oi: any) => oi.status === 'pendente')
-                              closeOrder(order.id, order.tables.id, orderTotalGross, !!hasPending, orderTotalRemaining)
+                              closeOrder(order.id, order.tables.id, order.order_items || [])
                             }}
                             variant="destructive"
+                            disabled={isPending}
                             size="sm"
                             className="bg-emerald-600 hover:bg-emerald-700 text-white border-0 font-bold"
                           >
@@ -259,6 +288,7 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
                           <Button 
                             onClick={() => deleteOrder(order.id, order.tables.id)}
                             variant="destructive"
+                            disabled={isPending}
                             size="sm"
                             className="bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/30 hover:border-red-600 font-bold ml-2"
                             title="Apagar Comanda"

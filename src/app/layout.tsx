@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 
 import GlobalRefreshButton from "@/components/GlobalRefreshButton";
+import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -21,6 +22,7 @@ export default function RootLayout({
       <body className={`${inter.className} antialiased relative`}>
         {children}
         <GlobalRefreshButton />
+        <Toaster position="bottom-center" richColors />
       </body>
     </html>
   );

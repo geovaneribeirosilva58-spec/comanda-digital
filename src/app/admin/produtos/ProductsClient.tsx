@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Search, Trash2 } from 'lucide-react'
+import { Search, Trash2, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface ProductsClientProps {
   products: any[]
@@ -15,6 +16,7 @@ interface ProductsClientProps {
 export default function ProductsClient({ products, updateProductFull, toggleProductStatus, deleteProduct }: ProductsClientProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
 
   const filteredProducts = products.filter(product => 
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -52,9 +54,16 @@ export default function ProductsClient({ products, updateProductFull, toggleProd
                 return (
                   <tr key={product.id} className="bg-slate-800/80">
                     <td colSpan={5} className="p-0">
-                      <form action={async (formData) => {
-                        await updateProductFull(formData)
-                        setEditingId(null)
+                      <form action={(formData) => {
+                        startTransition(async () => {
+                          try {
+                            await updateProductFull(formData)
+                            setEditingId(null)
+                            toast.success("Produto atualizado!")
+                          } catch (error: any) {
+                            toast.error("Erro ao salvar produto: " + error.message)
+                          }
+                        })
                       }} className="flex items-center gap-4 px-6 py-4 w-full">
                         <input type="hidden" name="id" value={product.id} />
                         <Input name="name" defaultValue={product.name} className="flex-1 bg-slate-950 border-slate-700 font-bold text-amber-500 uppercase tracking-wider" required />
@@ -67,8 +76,10 @@ export default function ProductsClient({ products, updateProductFull, toggleProd
                           {product.active ? <span className="text-emerald-500 text-sm">Sim</span> : <span className="text-red-500 text-sm">Não</span>}
                         </div>
                         <div className="flex gap-2 justify-end ml-auto">
-                          <Button type="button" variant="ghost" size="sm" onClick={() => setEditingId(null)}>Cancelar</Button>
-                          <Button type="submit" size="sm" variant="secondary" className="bg-amber-500 text-slate-950 hover:bg-amber-600">Salvar</Button>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => setEditingId(null)} disabled={isPending}>Cancelar</Button>
+                          <Button type="submit" size="sm" variant="secondary" className="bg-amber-500 text-slate-950 hover:bg-amber-600" disabled={isPending}>
+                            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar'}
+                          </Button>
                         </div>
                       </form>
                     </td>
@@ -89,20 +100,39 @@ export default function ProductsClient({ products, updateProductFull, toggleProd
                     )}
                   </td>
                   <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => setEditingId(product.id)} className="text-slate-400 hover:text-amber-500">
+                    <Button variant="ghost" size="sm" onClick={() => setEditingId(product.id)} className="text-slate-400 hover:text-amber-500" disabled={isPending}>
                       Editar
                     </Button>
-                    <form action={() => toggleProductStatus(product.id, product.active)}>
-                      <Button variant={product.active ? "destructive" : "secondary"} size="sm">
+                    <form action={() => {
+                      startTransition(async () => {
+                        try {
+                          await toggleProductStatus(product.id, product.active)
+                        } catch (err: any) {
+                          toast.error("Erro ao alterar status.")
+                        }
+                      })
+                    }}>
+                      <Button variant={product.active ? "destructive" : "secondary"} size="sm" disabled={isPending}>
                         {product.active ? 'Desativar' : 'Ativar'}
                       </Button>
                     </form>
                     <form action={() => {
                       if(window.confirm('Tem certeza que deseja apagar este produto permanentemente?')) {
-                        deleteProduct(product.id)
+                        startTransition(async () => {
+                          try {
+                            await deleteProduct(product.id)
+                            toast.success("Produto excluído!")
+                          } catch (err: any) {
+                            if (err.message?.includes('foreign key constraint')) {
+                              toast.error("Não é possível excluir um produto que já foi vendido em uma comanda. Por favor, apenas desative-o.", { duration: 5000 })
+                            } else {
+                              toast.error("Erro ao excluir: " + err.message)
+                            }
+                          }
+                        })
                       }
                     }}>
-                      <Button variant="destructive" size="sm" className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border-0">
+                      <Button variant="destructive" size="sm" className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border-0" disabled={isPending}>
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </form>
