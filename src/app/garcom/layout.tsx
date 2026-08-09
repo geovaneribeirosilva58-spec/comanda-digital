@@ -2,6 +2,7 @@ import { LogOut, Beer } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { CallListener } from '@/components/CallListener'
 
 export default async function GarcomLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -33,6 +34,8 @@ export default async function GarcomLayout({ children }: { children: React.React
       <main className="flex-1 overflow-auto p-4 max-w-lg w-full mx-auto">
         {children}
       </main>
+      
+      <CallListener />
     </div>
   )
 }
