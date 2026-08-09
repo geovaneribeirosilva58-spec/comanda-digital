@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Receipt, UtensilsCrossed, CheckCircle, Clock, Banknote, CheckSquare } from 'lucide-react'
+import { Receipt, UtensilsCrossed, CheckCircle, Clock, Banknote, CheckSquare, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export default function DashboardClient({ initialOrders, initialTotalFechado }: { initialOrders: any[], initialTotalFechado: number }) {
@@ -131,6 +131,19 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
     }])
   }
 
+  const deleteOrder = async (orderId: string, tableId: string) => {
+    if(!confirm("TEM CERTEZA ABSOLUTA QUE DESEJA APAGAR ESTA COMANDA?\n\nEsta ação irá remover permanentemente a comanda e todos os seus itens do banco de dados, e não aparecerá nos relatórios.")) return;
+    
+    // 1. Apagar itens da comanda
+    await supabase.from('order_items').delete().eq('order_id', orderId)
+    // 2. Apagar a comanda
+    await supabase.from('orders').delete().eq('id', orderId)
+    // 3. Liberar a mesa
+    await supabase.from('tables').update({ status: 'livre' }).eq('id', tableId)
+    
+    fetchOrders()
+  }
+
   return (
     <div className="space-y-8">
       
@@ -242,6 +255,15 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
                           >
                             <CheckSquare className="w-4 h-4 mr-2" />
                             FINALIZAR
+                          </Button>
+                          <Button 
+                            onClick={() => deleteOrder(order.id, order.tables.id)}
+                            variant="destructive"
+                            size="sm"
+                            className="bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/30 hover:border-red-600 font-bold ml-2"
+                            title="Apagar Comanda"
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
