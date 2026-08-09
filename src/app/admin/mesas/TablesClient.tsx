@@ -130,7 +130,7 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
                     size="sm"
                     disabled={isPending}
                     onClick={async () => {
-                      if(confirm('Tem certeza que deseja apagar essa mesa? Todas as comandas vinculadas a ela serão perdidas.')) {
+                      if(confirm('Tem certeza que deseja apagar essa mesa do sistema? O histórico financeiro das comandas desta mesa será mantido nos relatórios.')) {
                         try {
                           const res = await fetch(`/api/mesas/${table.id}`, {
                             method: 'DELETE'

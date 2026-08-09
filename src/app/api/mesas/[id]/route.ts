@@ -20,20 +20,10 @@ export async function DELETE(
       }
     )
 
-    // 1. Buscar comandas vinculadas
-    const { data: orders } = await supabaseAdmin.from('orders').select('id').eq('table_id', id)
-    
-    if (orders && orders.length > 0) {
-      const orderIds = orders.map(o => o.id)
-      
-      // 2. Apagar itens das comandas (em lotes de 1000 se necessário, mas para pequenos volumes .in() funciona)
-      const { error: itemsError } = await supabaseAdmin.from('order_items').delete().in('order_id', orderIds)
-      if (itemsError) throw itemsError
-    }
-
-    // 3. Apagar as comandas
-    const { error: ordersError } = await supabaseAdmin.from('orders').delete().eq('table_id', id)
-    if (ordersError) throw ordersError
+    // 1. Desvincular comandas e chamados (mantendo o histórico financeiro)
+    // O orders.table_name_snapshot continuará sendo exibido no dashboard.
+    await supabaseAdmin.from('table_calls').delete().eq('table_id', id)
+    await supabaseAdmin.from('orders').update({ table_id: null }).eq('table_id', id)
 
     // 4. Apagar a mesa
     const { error: tableError } = await supabaseAdmin.from('tables').delete().eq('id', id)
