@@ -39,7 +39,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const isAuthRoute = request.nextUrl.pathname === '/login'
-  const isClientRoute = request.nextUrl.pathname.startsWith('/cliente/mesa')
+  const isClientRoute = request.nextUrl.pathname.startsWith('/cliente')
 
   // Redirecionar usuário logado fora do admin/garcom para sua área respectiva
   if (user && (request.nextUrl.pathname === '/' || isAuthRoute)) {
