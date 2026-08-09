@@ -1,11 +1,15 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import Link from 'next/link'
 import { UtensilsCrossed } from 'lucide-react'
 
 export const revalidate = 0
 
 export default async function ClienteHomePage() {
-  const supabase = await createClient()
+  // Bypass RLS using service_role_key in Server Component
+  const supabase = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
 
   // Buscar mesas ativas ordenadas por nome
   const { data: tables } = await supabase

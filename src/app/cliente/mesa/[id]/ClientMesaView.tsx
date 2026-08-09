@@ -1,19 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
 import { Button } from '@/components/ui/button'
 import { BellRing, CheckCircle2, Beer } from 'lucide-react'
+import { callWaiter } from '../../actions'
 
 export default function ClientMesaView({ table }: { table: any }) {
   const [loadingType, setLoadingType] = useState<string | null>(null)
   const [successType, setSuccessType] = useState<string | null>(null)
   const [cooldown, setCooldown] = useState(0)
-
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
 
   const handleCallWaiter = async (type: 'garcom' | 'cerveja') => {
     if (cooldown > 0) return
@@ -21,13 +16,7 @@ export default function ClientMesaView({ table }: { table: any }) {
     setLoadingType(type)
     
     try {
-      const { error } = await supabase.from('table_calls').insert({
-        table_id: table.id,
-        status: 'pendente',
-        call_type: type
-      })
-
-      if (error) throw error
+      await callWaiter(table.id, type)
 
       setSuccessType(type)
       
