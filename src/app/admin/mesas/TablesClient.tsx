@@ -128,20 +128,13 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
                     onClick={async () => {
                       if(confirm('Tem certeza que deseja apagar essa mesa? Todas as comandas vinculadas a ela serão perdidas.')) {
                         try {
-                          // Buscar comandas vinculadas
-                          const { data: orders } = await supabase.from('orders').select('id').eq('table_id', table.id)
-                          if (orders && orders.length > 0) {
-                            const orderIds = orders.map(o => o.id)
-                            // Apagar itens das comandas
-                            await supabase.from('order_items').delete().in('order_id', orderIds)
+                          const res = await fetch(`/api/mesas/${table.id}`, {
+                            method: 'DELETE'
+                          })
+                          if (!res.ok) {
+                            const data = await res.json()
+                            throw new Error(data.error || 'Erro desconhecido')
                           }
-                          // Apagar as comandas
-                          await supabase.from('orders').delete().eq('table_id', table.id)
-                          
-                          // Apagar a mesa
-                          const { error } = await supabase.from('tables').delete().eq('id', table.id)
-                          if (error) throw new Error(error.message)
-                          
                           window.location.reload()
                         } catch (err: any) {
                           alert('Erro ao apagar mesa: ' + err.message)
