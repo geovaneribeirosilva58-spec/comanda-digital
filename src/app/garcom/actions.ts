@@ -142,3 +142,26 @@ export async function reopenOrder(orderId: string, tableId: string) {
   revalidatePath(`/garcom/mesas`)
   revalidatePath(`/admin/dashboard`)
 }
+
+export async function addPartialPaymentServer(orderId: string, amount: number, tableId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) throw new Error('Não autenticado')
+
+  // Verify se é admin
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') throw new Error('Sem permissão para receber pagamentos parciais')
+
+  await supabase.from('order_items').insert([{
+    order_id: orderId,
+    quantity: 1,
+    unit_price: -amount,
+    status: 'entregue',
+    note: 'Pagamento Parcial'
+  }])
+
+  revalidatePath(`/admin/mesas/${tableId}`)
+  revalidatePath(`/admin/dashboard`)
+  revalidatePath(`/garcom/mesas/${tableId}`)
+}

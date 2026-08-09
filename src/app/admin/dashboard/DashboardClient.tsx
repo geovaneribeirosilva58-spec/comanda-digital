@@ -83,7 +83,7 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
   })()
 
   const totalFaturamentoAberto = orders.reduce((acc: number, order: any) => {
-    const orderTotal = order.order_items?.reduce((itemAcc: number, oi: any) => itemAcc + (oi.status !== 'cancelado' ? oi.unit_price * oi.quantity : 0), 0) || 0
+    const orderTotal = order.order_items?.reduce((itemAcc: number, oi: any) => itemAcc + (oi.status !== 'cancelado' && oi.unit_price > 0 ? oi.unit_price * oi.quantity : 0), 0) || 0
     return acc + orderTotal
   }, 0)
 
@@ -91,14 +91,14 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
     await supabase.from('order_items').update({ status: 'entregue' }).in('id', itemIds)
   }
 
-  const closeOrder = async (orderId: string, tableId: string, orderTotal: number, hasPending: boolean) => {
+  const closeOrder = async (orderId: string, tableId: string, orderTotal: number, hasPending: boolean, totalRemaining: number) => {
     if (hasPending) {
-      if(!confirm(`ATENÇÃO: Esta mesa possui itens pendentes (ainda não entregues)!\n\nTem certeza que deseja fechar a comanda no valor de R$ ${orderTotal.toFixed(2)} mesmo assim?`)) return;
+      if(!confirm(`ATENÇÃO: Esta mesa possui itens pendentes (ainda não entregues)!\n\nTem certeza que deseja fechar a comanda mesmo assim? (Faturamento Bruto R$ ${orderTotal.toFixed(2)}, Restante a Receber: R$ ${totalRemaining.toFixed(2)})`)) return;
     } else {
-      if(!confirm(`Tem certeza que deseja fechar esta comanda no valor de R$ ${orderTotal.toFixed(2)}?`)) return;
+      if(!confirm(`Tem certeza que deseja fechar esta comanda?\n(Faturamento Bruto R$ ${orderTotal.toFixed(2)}, Restante a Receber: R$ ${totalRemaining.toFixed(2)})`)) return;
     }
     
-    // 1. Fechar a comanda
+    // 1. Fechar a comanda - gravamos o faturamento BRUTO na comanda (soma apenas dos itens positivos)
     await supabase.from('orders').update({ 
       status: 'fechada', 
       closed_at: new Date().toISOString(),
@@ -110,6 +110,25 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
     
     // A tela vai recarregar sozinha pelos websockets, mas forçamos um fetch
     fetchOrders()
+  }
+
+  const addPartialPayment = async (orderId: string, remainingTotal: number) => {
+    const amountStr = prompt(`QUAL O VALOR DO PAGAMENTO PARCIAL?\n\nFalta receber: R$ ${remainingTotal.toFixed(2)}\n\nDigite o valor usando ponto (ex: 50.00):`)
+    if (!amountStr) return
+    const amount = parseFloat(amountStr.replace(',', '.'))
+    if (isNaN(amount) || amount <= 0) {
+      alert("Valor inválido!")
+      return
+    }
+
+    // Criar um item de "Pagamento Parcial" na comanda
+    await supabase.from('order_items').insert([{
+      order_id: orderId,
+      quantity: 1,
+      unit_price: -amount,
+      status: 'entregue',
+      note: 'Pagamento Parcial'
+    }])
   }
 
   return (
@@ -176,7 +195,10 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
             ) : (
               <div className="divide-y divide-slate-800">
                 {orders.map((order: any) => {
-                  const orderTotal = order.order_items?.reduce((itemAcc: number, oi: any) => itemAcc + (oi.status !== 'cancelado' ? oi.unit_price * oi.quantity : 0), 0) || 0
+                  const orderTotalGross = order.order_items?.reduce((itemAcc: number, oi: any) => itemAcc + (oi.status !== 'cancelado' && oi.unit_price > 0 ? oi.unit_price * oi.quantity : 0), 0) || 0
+                  const partialPayments = order.order_items?.reduce((itemAcc: number, oi: any) => itemAcc + (oi.status !== 'cancelado' && oi.unit_price < 0 ? Math.abs(oi.unit_price * oi.quantity) : 0), 0) || 0
+                  const orderTotalRemaining = orderTotalGross - partialPayments
+                  
                   return (
                   <div key={order.id} className="p-5 hover:bg-slate-800/50 transition-colors">
                     <div className="flex justify-between items-start mb-4">
@@ -184,26 +206,44 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
                         <span className="font-bold text-2xl text-amber-500 block mb-1">
                           Mesa {order.table_name_snapshot || order.tables?.name || 'Desconhecida'}
                         </span>
-                        <span className="text-xs text-slate-400 bg-slate-950 px-2 py-1 rounded">
+                        <span className="text-xs text-slate-400 bg-slate-950 px-2 py-1 rounded block w-fit mb-2">
                           Garçom: {order.profiles?.name || 'Desconhecido'}
                         </span>
+                        {partialPayments > 0 && (
+                          <div className="text-xs space-y-1">
+                            <div className="text-slate-400">Gasto total: <span className="text-slate-300">R$ {orderTotalGross.toFixed(2)}</span></div>
+                            <div className="text-emerald-500">Já pago: <span className="font-bold">R$ {partialPayments.toFixed(2)}</span></div>
+                          </div>
+                        )}
                       </div>
-                      <div className="text-right">
-                        <span className="font-bold text-xl text-slate-200 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 block mb-2">
-                          R$ {orderTotal.toFixed(2)}
+                      <div className="text-right flex flex-col items-end">
+                        <span className="text-xs text-slate-400 mb-1 uppercase font-bold tracking-wider">Falta Receber</span>
+                        <span className="font-bold text-2xl text-slate-200 bg-slate-800 px-4 py-2 rounded-lg border border-slate-700 block mb-3">
+                          R$ {orderTotalRemaining.toFixed(2)}
                         </span>
-                        <Button 
-                          onClick={() => {
-                            const hasPending = order.order_items?.some((oi: any) => oi.status === 'pendente')
-                            closeOrder(order.id, order.tables.id, orderTotal, !!hasPending)
-                          }}
-                          variant="destructive"
-                          size="sm"
-                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white border-0 font-bold"
-                        >
-                          <CheckSquare className="w-4 h-4 mr-2" />
-                          FINALIZAR
-                        </Button>
+                        <div className="flex space-x-2">
+                          <Button 
+                            onClick={() => addPartialPayment(order.id, orderTotalRemaining)}
+                            variant="secondary"
+                            size="sm"
+                            className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/30 font-bold"
+                          >
+                            <Banknote className="w-4 h-4 mr-2" />
+                            Receber Parcial
+                          </Button>
+                          <Button 
+                            onClick={() => {
+                              const hasPending = order.order_items?.some((oi: any) => oi.status === 'pendente')
+                              closeOrder(order.id, order.tables.id, orderTotalGross, !!hasPending, orderTotalRemaining)
+                            }}
+                            variant="destructive"
+                            size="sm"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white border-0 font-bold"
+                          >
+                            <CheckSquare className="w-4 h-4 mr-2" />
+                            FINALIZAR
+                          </Button>
+                        </div>
                       </div>
                     </div>
                     
@@ -225,13 +265,21 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
                             {groupedItems.map((oi: any) => (
                               <li key={oi.id} className={`flex justify-between items-center ${oi.status === 'cancelado' ? 'text-red-400/50 line-through' : 'text-slate-300'}`}>
                                 <span className="flex-1">
-                                  <span className="font-bold text-amber-500 mr-2">{oi.quantity}x</span> 
-                                  {oi.products?.name}
-                                  <span className="text-slate-500 text-[10px] ml-1 uppercase">({oi.profiles?.name || 'Desconhecido'})</span>
-                                  {oi.status === 'pendente' && <span className="ml-2 text-yellow-500 text-[10px] font-bold uppercase bg-yellow-500/10 px-1.5 py-0.5 rounded border border-yellow-500/20">Pendente</span>}
-                                  {oi.status === 'entregue' && <span className="ml-2 text-emerald-500 text-[10px] font-bold uppercase bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Entregue</span>}
+                                  {oi.unit_price < 0 ? (
+                                    <span className="text-emerald-500 font-bold uppercase">{oi.note || 'Pagamento Parcial'}</span>
+                                  ) : (
+                                    <>
+                                      <span className="font-bold text-amber-500 mr-2">{oi.quantity}x</span> 
+                                      {oi.products?.name}
+                                      <span className="text-slate-500 text-[10px] ml-1 uppercase">({oi.profiles?.name || 'Desconhecido'})</span>
+                                      {oi.status === 'pendente' && <span className="ml-2 text-yellow-500 text-[10px] font-bold uppercase bg-yellow-500/10 px-1.5 py-0.5 rounded border border-yellow-500/20">Pendente</span>}
+                                      {oi.status === 'entregue' && <span className="ml-2 text-emerald-500 text-[10px] font-bold uppercase bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">Entregue</span>}
+                                    </>
+                                  )}
                                 </span>
-                                <span className="text-slate-400 font-medium whitespace-nowrap ml-4">R$ {(oi.unit_price * oi.quantity).toFixed(2)}</span>
+                                <span className={oi.unit_price < 0 ? "text-emerald-500 font-bold whitespace-nowrap ml-4" : "text-slate-400 font-medium whitespace-nowrap ml-4"}>
+                                  R$ {(oi.unit_price * oi.quantity).toFixed(2)}
+                                </span>
                               </li>
                             ))}
                           </ul>
