@@ -26,6 +26,7 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [showGlobalQr, setShowGlobalQr] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [isPending, startTransition] = useTransition()
   const supabase = createClient()
 
@@ -50,8 +51,17 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end mb-4">
-        <Button onClick={() => setShowGlobalQr(true)} variant="secondary" className="bg-amber-500 text-slate-950 hover:bg-amber-600 font-bold">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+        <div className="w-full sm:max-w-xs">
+          <Input 
+            type="text"
+            placeholder="Pesquisar mesa..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-700 text-slate-200"
+          />
+        </div>
+        <Button onClick={() => setShowGlobalQr(true)} variant="secondary" className="bg-amber-500 text-slate-950 hover:bg-amber-600 font-bold w-full sm:w-auto">
           <QrCode className="w-5 h-5 mr-2" />
           Imprimir QR Code Geral
         </Button>
@@ -68,7 +78,7 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-800">
-          {initialTables?.map((table) => (
+          {initialTables?.filter((t) => t.name.toLowerCase().includes(searchQuery.toLowerCase())).map((table) => (
             <tr key={table.id} className="hover:bg-slate-800/50 transition-colors">
               <td className="px-6 py-4 text-lg font-bold text-amber-500 uppercase tracking-wider">
                 {editingId === table.id ? (

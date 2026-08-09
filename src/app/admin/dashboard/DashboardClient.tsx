@@ -10,6 +10,7 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
   const [orders, setOrders] = useState(initialOrders || [])
   const [totalFechado, setTotalFechado] = useState(initialTotalFechado || 0)
   const [isPending, setIsPending] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const supabase = createClient()
 
   // Função para recarregar as comandas
@@ -224,10 +225,21 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
         
         {/* Detalhes das Comandas */}
         <div>
-          <h2 className="text-xl font-bold mb-4 flex items-center text-slate-300">
-            <Receipt className="mr-2 h-5 w-5 text-amber-500" />
-            Comandas Abertas
-          </h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+            <h2 className="text-xl font-bold flex items-center text-slate-300 shrink-0">
+              <Receipt className="mr-2 h-5 w-5 text-amber-500" />
+              Comandas Abertas
+            </h2>
+            <div className="w-full sm:max-w-xs">
+              <input 
+                type="text" 
+                placeholder="Pesquisar mesa..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+            </div>
+          </div>
           <div className="bg-slate-900 rounded-lg border border-slate-800 shadow-sm overflow-hidden">
             {orders.length === 0 ? (
               <div className="p-8 text-center text-slate-500">
@@ -235,7 +247,10 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
               </div>
             ) : (
               <div className="divide-y divide-slate-800">
-                {orders.map((order: any) => {
+                {orders.filter((order: any) => {
+                  const tableName = order.table_name_snapshot || order.tables?.name || 'Desconhecida'
+                  return tableName.toLowerCase().includes(searchQuery.toLowerCase())
+                }).map((order: any) => {
                   const orderTotalGross = order.order_items?.reduce((itemAcc: number, oi: any) => itemAcc + (oi.status !== 'cancelado' && oi.unit_price > 0 ? oi.unit_price * oi.quantity : 0), 0) || 0
                   const partialPayments = order.order_items?.reduce((itemAcc: number, oi: any) => itemAcc + (oi.status !== 'cancelado' && oi.unit_price < 0 ? Math.abs(oi.unit_price * oi.quantity) : 0), 0) || 0
                   const orderTotalRemaining = orderTotalGross - partialPayments
