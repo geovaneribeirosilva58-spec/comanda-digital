@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import Link from 'next/link'
 import { Edit2, Check, X, Trash2, QrCode } from 'lucide-react'
 import { QRCodeCanvas } from 'qrcode.react'
+import { createClient } from '@/lib/supabase/client'
 
 type Table = {
   id: string
@@ -26,6 +27,7 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
   const [editName, setEditName] = useState('')
   const [qrTableId, setQrTableId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const supabase = createClient()
 
   const handleEditClick = (table: Table) => {
     setEditingId(table.id)
@@ -123,15 +125,27 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
                     variant="destructive"
                     size="sm"
                     disabled={isPending}
-                    onClick={() => {
+                    onClick={async () => {
                       if(confirm('Tem certeza que deseja apagar essa mesa? Todas as comandas vinculadas a ela serão perdidas.')) {
-                        startTransition(async () => {
-                          try {
-                            await onDeleteTable(table.id)
-                          } catch (err: any) {
-                            alert('Erro ao apagar mesa: ' + err.message)
+                        try {
+                          // Buscar comandas vinculadas
+                          const { data: orders } = await supabase.from('orders').select('id').eq('table_id', table.id)
+                          if (orders && orders.length > 0) {
+                            const orderIds = orders.map(o => o.id)
+                            // Apagar itens das comandas
+                            await supabase.from('order_items').delete().in('order_id', orderIds)
                           }
-                        })
+                          // Apagar as comandas
+                          await supabase.from('orders').delete().eq('table_id', table.id)
+                          
+                          // Apagar a mesa
+                          const { error } = await supabase.from('tables').delete().eq('id', table.id)
+                          if (error) throw new Error(error.message)
+                          
+                          window.location.reload()
+                        } catch (err: any) {
+                          alert('Erro ao apagar mesa: ' + err.message)
+                        }
                       }
                     }}
                     className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border-0"
