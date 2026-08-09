@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import Link from 'next/link'
@@ -25,6 +25,7 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [qrTableId, setQrTableId] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
 
   const handleEditClick = (table: Table) => {
     setEditingId(table.id)
@@ -33,7 +34,9 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
 
   const handleSave = async (id: string) => {
     if (editName.trim()) {
-      await onEditTable(id, editName.trim())
+      startTransition(async () => {
+        await onEditTable(id, editName.trim())
+      })
     }
     setEditingId(null)
   }
@@ -110,7 +113,8 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
                   <Button 
                     variant="secondary" 
                     size="sm"
-                    onClick={() => onToggleStatus(table.id, table.active)}
+                    disabled={isPending}
+                    onClick={() => startTransition(() => onToggleStatus(table.id, table.active))}
                     className="w-24 text-slate-300 border border-slate-700 hover:bg-slate-800"
                   >
                     {table.active ? 'Desativar' : 'Ativar'}
@@ -118,13 +122,16 @@ export function TablesClient({ initialTables, onToggleStatus, onEditTable, onDel
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={async () => {
+                    disabled={isPending}
+                    onClick={() => {
                       if(confirm('Tem certeza que deseja apagar essa mesa? Todas as comandas vinculadas a ela serão perdidas.')) {
-                        try {
-                          await onDeleteTable(table.id)
-                        } catch (err: any) {
-                          alert('Erro ao apagar mesa: ' + err.message)
-                        }
+                        startTransition(async () => {
+                          try {
+                            await onDeleteTable(table.id)
+                          } catch (err: any) {
+                            alert('Erro ao apagar mesa: ' + err.message)
+                          }
+                        })
                       }
                     }}
                     className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border-0"
