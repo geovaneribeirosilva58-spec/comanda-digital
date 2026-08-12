@@ -94,7 +94,7 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
     await supabase.from('order_items').update({ status: 'entregue' }).in('id', itemIds)
   }
 
-  const closeOrder = async (orderId: string, tableId: string, orderItems: any[]) => {
+  const closeOrder = async (orderId: string, tableId: string | undefined, orderItems: any[]) => {
     if(!confirm("Deseja realmente fechar esta comanda?")) return;
     
     setIsPending(true)
@@ -118,7 +118,9 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
       }).eq('id', orderId)
 
       // 2. Liberar a mesa
-      await supabase.from('tables').update({ status: 'livre' }).eq('id', tableId)
+      if (tableId) {
+        await supabase.from('tables').update({ status: 'livre' }).eq('id', tableId)
+      }
       
       toast.success("Comanda fechada com sucesso!")
       fetchOrders()
@@ -155,14 +157,17 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
     }
   }
 
-  const deleteOrder = async (orderId: string, tableId: string) => {
+  const deleteOrder = async (orderId: string, tableId: string | undefined) => {
     if(!confirm("TEM CERTEZA ABSOLUTA QUE DESEJA APAGAR ESTA COMANDA?\n\nEsta ação irá remover permanentemente a comanda e todos os seus itens do banco de dados, e não aparecerá nos relatórios.")) return;
     
     setIsPending(true)
     try {
       await supabase.from('order_items').delete().eq('order_id', orderId)
       await supabase.from('orders').delete().eq('id', orderId)
-      await supabase.from('tables').update({ status: 'livre' }).eq('id', tableId)
+      
+      if (tableId) {
+        await supabase.from('tables').update({ status: 'livre' }).eq('id', tableId)
+      }
       
       toast.success("Comanda apagada com sucesso!")
       fetchOrders()
@@ -290,7 +295,7 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
                           </Button>
                           <Button 
                             onClick={() => {
-                              closeOrder(order.id, order.tables.id, order.order_items || [])
+                              closeOrder(order.id, order.tables?.id, order.order_items || [])
                             }}
                             variant="destructive"
                             disabled={isPending}
@@ -301,7 +306,7 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
                             FINALIZAR
                           </Button>
                           <Button 
-                            onClick={() => deleteOrder(order.id, order.tables.id)}
+                            onClick={() => deleteOrder(order.id, order.tables?.id)}
                             variant="destructive"
                             disabled={isPending}
                             size="sm"
