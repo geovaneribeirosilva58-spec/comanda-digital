@@ -44,7 +44,7 @@ export default function DashboardClient({ initialOrders, initialTotalFechado }: 
 
   useEffect(() => {
     // Inicializar na montagem para garantir sincronia caso algo tenha mudado
-    fetchOrders()
+    void Promise.resolve().then(() => fetchOrders())
 
     const itemsSubscription = supabase
       .channel('order_items_changes')

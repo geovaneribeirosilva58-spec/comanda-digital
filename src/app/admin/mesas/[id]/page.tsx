@@ -23,7 +23,7 @@ export default async function ComandaPage({ params }: { params: { id: string } }
     .order('created_at', { ascending: false })
     .limit(1)
 
-  let order = orders?.[0]
+  const order = orders?.[0]
   let todayClosedOrders: any[] = []
 
   if (!order) {

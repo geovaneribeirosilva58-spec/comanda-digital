@@ -1,6 +1,7 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { notFound } from 'next/navigation'
 import ClientMesaView from './ClientMesaView'
+import { getActiveProductsForMenu } from '@/lib/menu-service'
 
 export const revalidate = 0
 
@@ -19,5 +20,8 @@ export default async function ClienteMesaPage({ params }: { params: { id: string
     notFound()
   }
 
-  return <ClientMesaView table={table} />
+  // Busca os produtos ativos agrupados por categoria
+  const { categories } = await getActiveProductsForMenu(supabase)
+
+  return <ClientMesaView table={table} categories={categories} />
 }
